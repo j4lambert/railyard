@@ -14,7 +14,7 @@ type AppConfig struct {
 	// Other fields to be appended here
 }
 
-// ConfigPathValidation is the result of validating the appConfig paths
+// ConfigPathValidation is the result of validating AppConfig paths
 type ConfigPathValidation struct {
 	IsConfigured        bool `json:"isConfigured"`
 	ModFolderPathValid  bool `json:"modFolderPathValid"`
@@ -27,7 +27,7 @@ type ResolveConfigResult struct {
 	Validation ConfigPathValidation `json:"validation"`
 }
 
-// AreConfigPathsConfigured checks if both required paths have been set in the AppConfig
+// AreConfigPathsConfigured checks if both required paths have been set in AppConfig
 func (c AppConfig) areConfigPathsConfigured() bool {
 	return strings.TrimSpace(c.ModFolderPath) != "" && strings.TrimSpace(c.ExecutablePath) != ""
 }
@@ -117,4 +117,4 @@ func (s *Config) UpdateModFolder(modFolderPath string) (AppConfig, error) {
 	})
 }
 
-// TODO: Add method for clearing config
+// TODO: Add method for setting/clearing config
