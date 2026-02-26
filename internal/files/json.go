@@ -5,43 +5,59 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
+	"path/filepath"
 )
 
-// JSONReadOptions controls behavior for missing or empty files.
 type JSONReadOptions struct {
 	AllowMissing bool
 	AllowEmpty   bool
 }
 
-// ReadJSON reads a JSON file at path into T and annotates errors with label context.
+// ReadJSON reads a JSON file at path into defined struct type T.
+// The label is used for annotating error messages.
+// Options on file existence and file content can be set with JSONReadOptions.
 func ReadJSON[T any](path string, label string, opts JSONReadOptions) (T, error) {
 	var zero T
-
-	target := strings.TrimSpace(label)
-	if target == "" {
-		target = "file"
-	}
-
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) && opts.AllowMissing {
 			return zero, nil
 		}
-		return zero, fmt.Errorf("failed to read %s %q: %w", target, path, err)
+		return zero, fmt.Errorf("failed to read %s %q: %w", label, path, err)
 	}
 
 	if len(bytes.TrimSpace(data)) == 0 {
 		if opts.AllowEmpty {
 			return zero, nil
 		}
-		return zero, fmt.Errorf("failed to parse %s %q: file is empty", target, path)
+		return zero, fmt.Errorf("failed to parse %s %q: file is empty", label, path)
 	}
 
 	var decoded T
 	if err := json.Unmarshal(data, &decoded); err != nil {
-		return zero, fmt.Errorf("failed to parse %s %q: %w", target, path, err)
+		return zero, fmt.Errorf("failed to parse %s %q: %w", label, path, err)
 	}
 
 	return decoded, nil
+}
+
+// WriteJSON formats the value to JSON and writes it to path.
+// The label is used for annotating error messages.
+func WriteJSON[T any](path string, label string, value T) error {
+	// Ensure the directory exists before writing the file
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("failed to create directory for %s %q: %w", label, path, err)
+	}
+
+	// Format the JSON with indentation for readability
+	formatted, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to serialize %s: %w", label, err)
+	}
+
+	if err := os.WriteFile(path, formatted, 0o644); err != nil {
+		return fmt.Errorf("failed to write %s %q: %w", label, path, err)
+	}
+
+	return nil
 }

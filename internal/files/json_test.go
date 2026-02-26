@@ -3,98 +3,100 @@ package files
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 type testPayload struct {
 	Name string `json:"name"`
 }
 
+func writeFixture(t *testing.T, path, content string) {
+	t.Helper()
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+}
+
 func TestReadJSONValid(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "valid.json")
-	if err := os.WriteFile(path, []byte(`{"name":"railyard"}`), 0644); err != nil {
-		t.Fatalf("write file: %v", err)
-	}
+	writeFixture(t, path, `{"name":"railyard"}`)
 
 	value, err := ReadJSON[testPayload](path, "test payload", JSONReadOptions{})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if value.Name != "railyard" {
-		t.Fatalf("unexpected payload: %#v", value)
-	}
-}
-
-func TestReadJSONMissingStrictErrors(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "missing.json")
-
-	_, err := ReadJSON[testPayload](path, "mods index", JSONReadOptions{})
-	if err == nil {
-		t.Fatal("expected error for missing file")
-	}
-	if !strings.Contains(err.Error(), "failed to read mods index") {
-		t.Fatalf("unexpected error message: %v", err)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "railyard", value.Name)
 }
 
 func TestReadJSONMissingAllowedReturnsZero(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "missing.json")
 
 	value, err := ReadJSON[testPayload](path, "app config", JSONReadOptions{AllowMissing: true})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if value != (testPayload{}) {
-		t.Fatalf("expected zero value, got %#v", value)
-	}
+	require.NoError(t, err)
+	require.Equal(t, testPayload{}, value)
 }
 
-func TestReadJSONEmptyStrictErrors(t *testing.T) {
+func TestReadJsonEmptyAllowedReturnsZero(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "empty.json")
-	if err := os.WriteFile(path, []byte("   \n\t  "), 0644); err != nil {
-		t.Fatalf("write file: %v", err)
-	}
-
-	_, err := ReadJSON[testPayload](path, "maps index", JSONReadOptions{})
-	if err == nil {
-		t.Fatal("expected error for empty file")
-	}
-	if !strings.Contains(err.Error(), "failed to parse maps index") {
-		t.Fatalf("unexpected error message: %v", err)
-	}
-}
-
-func TestReadJSONEmptyAllowedReturnsZero(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "empty.json")
-	if err := os.WriteFile(path, []byte("\n"), 0644); err != nil {
-		t.Fatalf("write file: %v", err)
-	}
+	writeFixture(t, path, "\n")
 
 	value, err := ReadJSON[testPayload](path, "app config", JSONReadOptions{AllowEmpty: true})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if value != (testPayload{}) {
-		t.Fatalf("expected zero value, got %#v", value)
-	}
+	require.NoError(t, err)
+	require.Equal(t, testPayload{}, value)
 }
 
-func TestReadJSONInvalidJSONIncludesLabel(t *testing.T) {
+func TestReadJSONErrorsOnMissing(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "missing.json")
+
+	_, err := ReadJSON[testPayload](path, "mods index", JSONReadOptions{})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "failed to read mods index")
+}
+
+func TestReadJSONErrorsOnEmptyJSON(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "empty.json")
+	writeFixture(t, path, "   \n\t  ") // content with only whitespace should be considered empty
+
+	_, err := ReadJSON[testPayload](path, "maps index", JSONReadOptions{})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "failed to parse maps index")
+}
+
+func TestReadJSONErrorsOnInvalidJSON(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "invalid.json")
-	if err := os.WriteFile(path, []byte(`{"name":`), 0644); err != nil {
-		t.Fatalf("write file: %v", err)
-	}
+	writeFixture(t, path, `{"name":`) // malformed JSON
 
 	_, err := ReadJSON[testPayload](path, "app config", JSONReadOptions{})
-	if err == nil {
-		t.Fatal("expected parse error")
-	}
-	if !strings.Contains(err.Error(), "failed to parse app config") {
-		t.Fatalf("unexpected error message: %v", err)
-	}
+	require.Error(t, err)
+	require.ErrorContains(t, err, "failed to parse app config")
+}
+
+func TestWriteJSONWritesValidFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config", "app.json")
+	input := testPayload{Name: "written"}
+
+	require.NoError(t, WriteJSON(path, "app config", input))
+
+	output, err := ReadJSON[testPayload](path, "app config", JSONReadOptions{})
+	require.NoError(t, err)
+	require.Equal(t, input, output)
+}
+
+func TestWriteJSONErrorsOnUnserializableValue(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config", "bad.json")
+	input := map[string]any{"bad": func() {}} // functions cannot be serialized to JSON
+
+	err := WriteJSON(path, "app config", input)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "failed to serialize app config")
+}
+
+func TestWriteJSONErrorsWhenTargetPathIsDirectory(t *testing.T) {
+	path := t.TempDir()
+
+	err := WriteJSON(path, "app config", testPayload{Name: "x"})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "failed to write app config")
 }

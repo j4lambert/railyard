@@ -285,14 +285,9 @@ func (r *Registry) GetMods() ([]ModManifest, error) {
 	mods := make([]ModManifest, 0, len(index.Mods))
 	for _, modID := range index.Mods {
 		manifestPath := filepath.Join(r.repoPath, "mods", modID, "manifest.json")
-		data, err := os.ReadFile(manifestPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read manifest for mod %q: %w", modID, err)
-		}
-
-		var manifest ModManifest
-		if err := json.Unmarshal(data, &manifest); err != nil {
-			return nil, fmt.Errorf("failed to parse manifest for mod %q: %w", modID, err)
+		manifest, modErr := files.ReadJSON[ModManifest](manifestPath, fmt.Sprintf("manifest for mod %q", modID), files.JSONReadOptions{})
+		if modErr != nil {
+			return nil, modErr
 		}
 		mods = append(mods, manifest)
 	}
@@ -303,22 +298,17 @@ func (r *Registry) GetMods() ([]ModManifest, error) {
 // GetMaps reads the maps index and returns all map manifests.
 func (r *Registry) GetMaps() ([]MapManifest, error) {
 	indexPath := filepath.Join(r.repoPath, "maps", "index.json")
-	index, err := files.ReadJSON[IndexFile](indexPath, "maps index", files.JSONReadOptions{})
-	if err != nil {
-		return nil, err
+	index, indexErr := files.ReadJSON[IndexFile](indexPath, "maps index", files.JSONReadOptions{})
+	if indexErr != nil {
+		return nil, indexErr
 	}
 
 	maps := make([]MapManifest, 0, len(index.Maps))
 	for _, mapID := range index.Maps {
 		manifestPath := filepath.Join(r.repoPath, "maps", mapID, "manifest.json")
-		data, err := os.ReadFile(manifestPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read manifest for map %q: %w", mapID, err)
-		}
-
-		var manifest MapManifest
-		if err := json.Unmarshal(data, &manifest); err != nil {
-			return nil, fmt.Errorf("failed to parse manifest for map %q: %w", mapID, err)
+		manifest, mapErr := files.ReadJSON[MapManifest](manifestPath, fmt.Sprintf("manifest for map %q", mapID), files.JSONReadOptions{})
+		if mapErr != nil {
+			return nil, mapErr
 		}
 		maps = append(maps, manifest)
 	}
