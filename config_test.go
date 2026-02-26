@@ -25,11 +25,15 @@ func writeTestConfigFile(t *testing.T, content string) {
 	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 }
 
-func TestAreConfigPathsConfigured(t *testing.T) {
-	cfg := AppConfig{
-		MetroMakerDataPath: "directory/mods",
-		ExecutablePath:     "other_directory/executable.exe",
+func testConfig() AppConfig {
+	return AppConfig{
+		ExecutablePath:     "dir/executable.exe",
+		MetroMakerDataPath: "dir/mods",
 	}
+}
+
+func TestAreConfigPathsConfigured(t *testing.T) {
+	cfg := testConfig()
 	require.True(t, cfg.areConfigPathsConfigured())
 
 	cfg.MetroMakerDataPath = "   "
@@ -75,18 +79,50 @@ func TestValidateConfigPaths(t *testing.T) {
 func TestUpdateConfigPersistsMutations(t *testing.T) {
 	setEnv(t)
 	require.NoError(t, writeAppConfig(AppConfig{
-		ExecutablePath: "/Applications/Subway Builder.app/Contents/MacOS/Subway Builder",
+		ExecutablePath: "dir/executable.exe",
 	}))
 
-	svc := NewConfig()
-	updated, err := svc.updateConfig(func(cfg *AppConfig) {
-		cfg.MetroMakerDataPath = "~/Library/Application Support/metro-maker4/mods/"
+	cfg := NewConfig()
+	updated, err := cfg.updateConfig(func(c *AppConfig) {
+		c.MetroMakerDataPath = "dir/mods"
 	})
 	require.NoError(t, err)
-	require.Equal(t, "~/Library/Application Support/metro-maker4/mods/", updated.MetroMakerDataPath)
-	require.Equal(t, "/Applications/Subway Builder.app/Contents/MacOS/Subway Builder", updated.ExecutablePath)
+	require.Equal(t, testConfig(), updated)
 
 	persisted, err := readAppConfig()
 	require.NoError(t, err)
 	require.Equal(t, updated, persisted)
+}
+
+func TestSetConfigOverwritesAllFields(t *testing.T) {
+	setEnv(t)
+	require.NoError(t, writeAppConfig(testConfig()))
+
+	cfg := NewConfig()
+	next := AppConfig{
+		ExecutablePath:     "new/executable.exe",
+		MetroMakerDataPath: "new/mods",
+	}
+	updated, err := cfg.SetConfig(next)
+	require.NoError(t, err)
+	require.Equal(t, next, updated)
+
+	// updated config should be persisted to disk
+	persisted, err := readAppConfig()
+	require.NoError(t, err)
+	require.Equal(t, next, persisted)
+}
+
+func TestClearConfigOverwritesWithEmptyConfig(t *testing.T) {
+	setEnv(t)
+	require.NoError(t, writeAppConfig(testConfig()))
+
+	cfg := NewConfig()
+	updated, err := cfg.ClearConfig()
+	require.NoError(t, err)
+	require.Equal(t, AppConfig{}, updated)
+
+	persisted, err := readAppConfig()
+	require.NoError(t, err)
+	require.Equal(t, AppConfig{}, persisted)
 }
