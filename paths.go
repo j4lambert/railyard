@@ -21,6 +21,7 @@ func UserConfigRoot() string {
 		return configDir
 	}
 
+	// Fallback to home directory if UserConfigDir fails
 	home, err := os.UserHomeDir()
 	if err == nil {
 		return home
