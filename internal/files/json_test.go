@@ -12,15 +12,14 @@ type testPayload struct {
 	Name string `json:"name"`
 }
 
-func writeFixture(t *testing.T, path, content string) {
+func writeTestJSON(t *testing.T, path, content string) {
 	t.Helper()
 	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 }
 
 func TestReadJSONValid(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "valid.json")
-	writeFixture(t, path, `{"name":"railyard"}`)
+	path := filepath.Join(t.TempDir(), "valid.json")
+	writeTestJSON(t, path, `{"name":"railyard"}`)
 
 	value, err := ReadJSON[testPayload](path, "test payload", JSONReadOptions{})
 	require.NoError(t, err)
@@ -36,9 +35,8 @@ func TestReadJSONMissingAllowedReturnsZero(t *testing.T) {
 }
 
 func TestReadJsonEmptyAllowedReturnsZero(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "empty.json")
-	writeFixture(t, path, "\n")
+	path := filepath.Join(t.TempDir(), "empty.json")
+	writeTestJSON(t, path, "\n")
 
 	value, err := ReadJSON[testPayload](path, "app config", JSONReadOptions{AllowEmpty: true})
 	require.NoError(t, err)
@@ -54,9 +52,8 @@ func TestReadJSONErrorsOnMissing(t *testing.T) {
 }
 
 func TestReadJSONErrorsOnEmptyJSON(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "empty.json")
-	writeFixture(t, path, "   \n\t  ") // content with only whitespace should be considered empty
+	path := filepath.Join(t.TempDir(), "empty.json")
+	writeTestJSON(t, path, "   \n\t  ") // content with only whitespace should be considered empty
 
 	_, err := ReadJSON[testPayload](path, "maps index", JSONReadOptions{})
 	require.Error(t, err)
@@ -64,9 +61,8 @@ func TestReadJSONErrorsOnEmptyJSON(t *testing.T) {
 }
 
 func TestReadJSONErrorsOnInvalidJSON(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "invalid.json")
-	writeFixture(t, path, `{"name":`) // malformed JSON
+	path := filepath.Join(t.TempDir(), "invalid.json")
+	writeTestJSON(t, path, `{"name":`) // malformed JSON
 
 	_, err := ReadJSON[testPayload](path, "app config", JSONReadOptions{})
 	require.Error(t, err)
