@@ -67,6 +67,11 @@ type InstallMapResponse struct {
 	Data    *ConfigData `json:"data,omitempty"`
 }
 
+type InstallModResponse struct {
+	Status  string `json:"status"`
+	Message string `json:"message,omitempty"`
+}
+
 // NewApp creates a new App application struct
 func NewApp() *App {
 	return &App{
@@ -336,6 +341,130 @@ func (a *App) InstallMap(zipFilePath string, subwayBuilderDataPath string) Insta
 	return InstallMapResponse{
 		Status: "success",
 		Data:   &configData,
+	}
+}
+
+func (a *App) InstallMod(zipFilePath string, subwayBuilderDataPath string, modId string) InstallModResponse {
+	reader, err := zip.OpenReader(zipFilePath)
+	if err != nil {
+		return InstallModResponse{
+			Status:  "error",
+			Message: fmt.Sprintf("Failed to open zip file: %v", err),
+		}
+	}
+	defer reader.Close()
+
+	// Extract mod bundle to the correct directory
+	modDir := path.Join(subwayBuilderDataPath, "mods", modId)
+	err = os.MkdirAll(modDir, os.ModePerm)
+	if err != nil {
+		return InstallModResponse{
+			Status:  "error",
+			Message: fmt.Sprintf("Failed to create mod directory: %v", err),
+		}
+	}
+
+	// Collect all files to process (excluding directories)
+	var filesToProcess []*zip.File
+	for _, file := range reader.File {
+		if !file.FileInfo().IsDir() {
+			filesToProcess = append(filesToProcess, file)
+		}
+	}
+
+	if len(filesToProcess) == 0 {
+		return InstallModResponse{
+			Status: "success",
+		}
+	}
+
+	// Channel to collect errors from all goroutines
+	errorChan := make(chan error, len(filesToProcess))
+
+	log.Printf("Starting parallel extraction of %d mod files...", len(filesToProcess))
+
+	// Process each file in its own goroutine for maximum parallelization
+	for _, file := range filesToProcess {
+		go func(file *zip.File) {
+			defer func() {
+				// Always send to channel to signal completion (nil for success)
+				if r := recover(); r != nil {
+					errorChan <- fmt.Errorf("Panic in %s processing: %v", file.Name, r)
+				}
+			}()
+
+			log.Printf("[DEBUG] Starting extraction of %s...", file.Name)
+			srcFile, err := file.Open()
+			if err != nil {
+				log.Printf("[ERROR] Failed to open file %s in zip: %v", file.Name, err)
+				errorChan <- fmt.Errorf("Failed to open file in zip: %v", err)
+				return
+			}
+			defer srcFile.Close()
+
+			destFilePath := path.Join(modDir, file.Name)
+			destDir := path.Dir(destFilePath)
+
+			// Create destination directory if it doesn't exist
+			err = os.MkdirAll(destDir, os.ModePerm)
+			if err != nil {
+				log.Printf("[ERROR] Failed to create directory %s for mod file: %v", destDir, err)
+				errorChan <- fmt.Errorf("Failed to create directory for mod file: %v", err)
+				return
+			}
+
+			destFile, err := os.Create(destFilePath)
+			if err != nil {
+				log.Printf("[ERROR] Failed to create destination file %s: %v", destFilePath, err)
+				errorChan <- fmt.Errorf("Failed to create destination file for mod: %v", err)
+				return
+			}
+			defer destFile.Close()
+
+			fileSize := file.UncompressedSize64
+			log.Printf("[DEBUG] Copying %s (%.2f MB)...", file.Name, float64(fileSize)/(1024*1024))
+			startTime := time.Now()
+
+			_, err = io.Copy(destFile, srcFile)
+			if err != nil {
+				log.Printf("[ERROR] Failed to copy mod file %s: %v", file.Name, err)
+				errorChan <- fmt.Errorf("Failed to copy mod file: %v", err)
+				return
+			}
+
+			duration := time.Since(startTime)
+			log.Printf("Successfully extracted %s (%.2f MB in %v)", file.Name, float64(fileSize)/(1024*1024), duration)
+
+			// Signal successful completion
+			errorChan <- nil
+		}(file)
+	}
+
+	// Wait for all goroutines to complete
+	log.Printf("Waiting for %d file extraction goroutines to complete...", len(filesToProcess))
+	for i := 0; i < len(filesToProcess); i++ {
+		select {
+		case err := <-errorChan:
+			if err != nil {
+				log.Printf("[ERROR] File extraction failed: %v", err)
+				return InstallModResponse{
+					Status:  "error",
+					Message: err.Error(),
+				}
+			}
+			log.Printf("[DEBUG] File extraction goroutine %d/%d completed successfully", i+1, len(filesToProcess))
+		case <-time.After(5 * time.Minute):
+			log.Printf("[ERROR] File extraction timed out after 5 minutes")
+			return InstallModResponse{
+				Status:  "error",
+				Message: "File extraction timed out after 5 minutes",
+			}
+		}
+	}
+
+	log.Printf("[DEBUG] All mod file extractions completed successfully")
+	return InstallModResponse{
+		Status: "success",
 	}
 }
 

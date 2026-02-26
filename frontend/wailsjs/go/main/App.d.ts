@@ -5,3 +5,5 @@ import {main} from '../models';
 export function GetVanillaMapCodes():Promise<Array<string>>;
 
 export function InstallMap(arg1:string,arg2:string):Promise<main.InstallMapResponse>;
+
+export function InstallMod(arg1:string,arg2:string,arg3:string):Promise<main.InstallModResponse>;
