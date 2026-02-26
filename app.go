@@ -16,6 +16,7 @@ import (
 type App struct {
 	ctx      context.Context
 	Registry *Registry
+	Config   *Config
 }
 
 type MissingFilesError struct {
@@ -62,6 +63,7 @@ func (e *MissingFilesError) Error() string {
 func NewApp() *App {
 	return &App{
 		Registry: NewRegistry(),
+		Config:   NewConfig(),
 	}
 }
 
