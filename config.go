@@ -274,26 +274,10 @@ func findDefaultPath(candidates []string, shouldBeDir bool) (detectedPath string
 	return "", false
 }
 
-// defaultMetroMakerDataFolderCandidates returns known default locations for the metro maker data folder
+// defaultMetroMakerDataFolderCandidates returns the default locations for the metro maker data folder
 func defaultMetroMakerDataFolderCandidates() []string {
-	switch runtime.GOOS {
-	case "darwin":
-		homeDir, _ := os.UserHomeDir()
-		return []string{
-			filepath.Join(homeDir, "Library", "Application Support", "metro-maker4"),
-		}
-	case "windows":
-		appData := strings.TrimSpace(os.Getenv("APPDATA"))
-		return []string{
-			filepath.Join(appData, "metro-maker4"),
-		}
-	case "linux":
-		homeDir, _ := os.UserHomeDir()
-		return []string{
-			filepath.Join(homeDir, ".config", "metro-maker4"),
-		}
-	default:
-		return nil
+	return []string{
+		filepath.Join(UserConfigRoot(), "metro-maker4"),
 	}
 }
 
@@ -341,7 +325,7 @@ func defaultExecutableDialogDirectory() string {
 		if programFilesX86 := strings.TrimSpace(os.Getenv("ProgramFiles(x86)")); programFilesX86 != "" {
 			return programFilesX86
 		}
-		return AppDataRoot()
+		return UserConfigRoot()
 	case "linux":
 		// If Railyard is running as AppImage, default to the same directory; otherwise, default to /usr/bin
 		if appImage := strings.TrimSpace(os.Getenv("APPIMAGE")); appImage != "" {
@@ -349,6 +333,6 @@ func defaultExecutableDialogDirectory() string {
 		}
 		return "/usr/bin"
 	default:
-		return AppDataRoot()
+		return UserConfigRoot()
 	}
 }
