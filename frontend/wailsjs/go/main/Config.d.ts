@@ -4,11 +4,11 @@ import {types} from '../models';
 
 export function ClearConfig():Promise<types.AppConfig>;
 
+export function GetConfig():Promise<types.ResolveConfigResult>;
+
 export function OpenExecutableDialog(arg1:types.SetConfigPathOptions):Promise<types.SetConfigPathResult>;
 
 export function OpenMetroMakerDataFolderDialog(arg1:types.SetConfigPathOptions):Promise<types.SetConfigPathResult>;
-
-export function ResolveConfig():Promise<types.ResolveConfigResult>;
 
 export function SaveConfig():Promise<types.ResolveConfigResult>;
 

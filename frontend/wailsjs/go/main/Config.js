@@ -6,16 +6,16 @@ export function ClearConfig() {
   return window['go']['main']['Config']['ClearConfig']();
 }
 
+export function GetConfig() {
+  return window['go']['main']['Config']['GetConfig']();
+}
+
 export function OpenExecutableDialog(arg1) {
   return window['go']['main']['Config']['OpenExecutableDialog'](arg1);
 }
 
 export function OpenMetroMakerDataFolderDialog(arg1) {
   return window['go']['main']['Config']['OpenMetroMakerDataFolderDialog'](arg1);
-}
-
-export function ResolveConfig() {
-  return window['go']['main']['Config']['ResolveConfig']();
 }
 
 export function SaveConfig() {
