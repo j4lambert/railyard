@@ -146,6 +146,7 @@ func (s *Config) OpenMetroMakerDataFolderDialog(options types.SetConfigPathOptio
 				defaultMetroMakerDataFolderCandidates(),
 				true,
 				s.updateMetroMakerDataFolder,
+				func(v types.ConfigPathValidation) bool { return v.MetroMakerDataPathValid },
 			)
 		},
 		func(ctx context.Context) (string, error) {
@@ -169,6 +170,7 @@ func (s *Config) OpenExecutableDialog(options types.SetConfigPathOptions) (types
 				defaultExecutableCandidates(),
 				false,
 				s.updateExecutable,
+				func(v types.ConfigPathValidation) bool { return v.ExecutablePathValid },
 			)
 		},
 		func(ctx context.Context) (string, error) {
@@ -230,6 +232,7 @@ func (s *Config) tryAutoDetectPath(
 	candidates []string,
 	shouldBeDir bool,
 	updatePath func(path string) (types.ResolveConfigResult, error),
+	isPathValid func(types.ConfigPathValidation) bool,
 ) (types.SetConfigPathResult, bool) {
 	detectedPath, success := findDefaultPath(candidates, shouldBeDir)
 	if !success {
@@ -240,7 +243,7 @@ func (s *Config) tryAutoDetectPath(
 	if err != nil {
 		return types.SetConfigPathResult{}, false
 	}
-	if !resolved.Validation.IsValid() {
+	if !isPathValid(resolved.Validation) {
 		return types.SetConfigPathResult{}, false
 	}
 

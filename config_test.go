@@ -20,8 +20,8 @@ func setEnv(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("APPDATA", root)           // Config directory for Windows
 	t.Setenv("LOCALAPPDATA", root)      // Executable default candidate on Windows
-	t.Setenv("ProgramFiles", root)      // Executable default candidate fallback on Windows
-	t.Setenv("ProgramFiles(x86)", root) // Executable default candidate fallback on Windows
+	t.Setenv("ProgramFiles", root)      // Executable alternative candidate on Windows
+	t.Setenv("ProgramFiles(x86)", root) // Executable fallback candidate on Windows
 	t.Setenv("XDG_CONFIG_HOME", root)   // Config directory for Linux and MacOS
 	t.Setenv("HOME", root)              // Fallback for non-windows OS
 }
@@ -292,7 +292,7 @@ func TestOpenMetroMakerDialogAutoDetectSuccessDoesNotPersist(t *testing.T) {
 	}, h.persisted())
 }
 
-func TestTryAutoDetectExecutableFailsValidation(t *testing.T) {
+func TestTryAutoDetectExecutableSucceedsWhenExecutablePathIsValid(t *testing.T) {
 	setEnv(t)
 	detectedPath := createWritableCandidateFile(t, defaultExecutableCandidates())
 
@@ -301,15 +301,18 @@ func TestTryAutoDetectExecutableFailsValidation(t *testing.T) {
 		defaultExecutableCandidates(),
 		false,
 		cfg.updateExecutable,
+		func(v types.ConfigPathValidation) bool { return v.ExecutablePathValid },
 	)
-	require.False(t, success)
-	require.Equal(t, types.SetConfigPathResult{}, autoDetected)
+	require.True(t, success)
+	require.Equal(t, types.SourceAutoDetected, autoDetected.SetConfigSource)
+	require.Equal(t, detectedPath, autoDetected.AutoDetectedPath)
+	require.Equal(t, detectedPath, autoDetected.ResolveConfigResult.Config.ExecutablePath)
 
 	runtimeAfter := cfg.GetConfig()
 	require.Equal(t, detectedPath, runtimeAfter.Config.ExecutablePath)
 }
 
-func TestTryAutoDetectMetroMakerFailsValidation(t *testing.T) {
+func TestTryAutoDetectMetroMakerSucceedsWhenMetroMakerDataPathIsValid(t *testing.T) {
 	setEnv(t)
 	detectedPath := createWritableCandidateDir(t, defaultMetroMakerDataFolderCandidates())
 
@@ -318,9 +321,12 @@ func TestTryAutoDetectMetroMakerFailsValidation(t *testing.T) {
 		defaultMetroMakerDataFolderCandidates(),
 		true,
 		cfg.updateMetroMakerDataFolder,
+		func(v types.ConfigPathValidation) bool { return v.MetroMakerDataPathValid },
 	)
-	require.False(t, success)
-	require.Equal(t, types.SetConfigPathResult{}, autoDetected)
+	require.True(t, success)
+	require.Equal(t, types.SourceAutoDetected, autoDetected.SetConfigSource)
+	require.Equal(t, detectedPath, autoDetected.AutoDetectedPath)
+	require.Equal(t, detectedPath, autoDetected.ResolveConfigResult.Config.MetroMakerDataPath)
 
 	runtimeAfter := cfg.GetConfig()
 	require.Equal(t, detectedPath, runtimeAfter.Config.MetroMakerDataPath)

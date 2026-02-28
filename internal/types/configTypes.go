@@ -97,14 +97,15 @@ func (c AppConfig) ValidateConfigPaths() (bool, ConfigPathValidation) {
 		IsConfigured: c.AreConfigPathsConfigured(),
 	}
 
-	if !result.IsConfigured {
-		return false, result
+	if strings.TrimSpace(c.MetroMakerDataPath) != "" {
+		modInfo, modErr := os.Stat(c.MetroMakerDataPath)
+		result.MetroMakerDataPathValid = modErr == nil && modInfo.IsDir()
 	}
 
-	modInfo, modErr := os.Stat(c.MetroMakerDataPath)
-	result.MetroMakerDataPathValid = modErr == nil && modInfo.IsDir()
-	exeInfo, exeErr := os.Stat(c.ExecutablePath)
-	result.ExecutablePathValid = exeErr == nil && isExecutable(c.ExecutablePath, exeInfo)
+	if strings.TrimSpace(c.ExecutablePath) != "" {
+		exeInfo, exeErr := os.Stat(c.ExecutablePath)
+		result.ExecutablePathValid = exeErr == nil && isExecutable(c.ExecutablePath, exeInfo)
+	}
 
 	return result.IsValid(), result
 }
