@@ -46,12 +46,16 @@ export function GetVersions(arg1, arg2) {
   return window['go']['main']['Registry']['GetVersions'](arg1, arg2);
 }
 
-export function Initialize() {
-  return window['go']['main']['Registry']['Initialize']();
-}
-
 export function Refresh() {
   return window['go']['main']['Registry']['Refresh']();
+}
+
+export function RemoveInstalledMap(arg1) {
+  return window['go']['main']['Registry']['RemoveInstalledMap'](arg1);
+}
+
+export function RemoveInstalledMod(arg1) {
+  return window['go']['main']['Registry']['RemoveInstalledMod'](arg1);
 }
 
 export function WriteInstalledToDisk() {

@@ -77,6 +77,22 @@ export namespace types {
 	        this.executablePathValid = source["executablePathValid"];
 	    }
 	}
+	export class Favorites {
+	    authors: string[];
+	    maps: string[];
+	    mods: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Favorites(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.authors = source["authors"];
+	        this.maps = source["maps"];
+	        this.mods = source["mods"];
+	    }
+	}
 	export class GenericResponse {
 	    status: string;
 	    message: string;
@@ -349,6 +365,195 @@ export namespace types {
 	        this.resolveConfigResult = this.convertValues(source["resolveConfigResult"], ResolveConfigResult);
 	        this.source = source["source"];
 	        this.autoDetectedPath = source["autoDetectedPath"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class SubscriptionOperation {
+	    assetId: string;
+	    type: string;
+	    action: string;
+	    version: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SubscriptionOperation(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.assetId = source["assetId"];
+	        this.type = source["type"];
+	        this.action = source["action"];
+	        this.version = source["version"];
+	    }
+	}
+	export class SubscriptionUpdateItem {
+	    version: string;
+	    type: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SubscriptionUpdateItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.version = source["version"];
+	        this.type = source["type"];
+	    }
+	}
+	export class Subscriptions {
+	    maps: Record<string, string>;
+	    mods: Record<string, string>;
+	
+	    static createFrom(source: any = {}) {
+	        return new Subscriptions(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.maps = source["maps"];
+	        this.mods = source["mods"];
+	    }
+	}
+	export class SystemPreferences {
+	    refreshRegistryOnStartup: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SystemPreferences(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.refreshRegistryOnStartup = source["refreshRegistryOnStartup"];
+	    }
+	}
+	export class UIPreferences {
+	    theme: string;
+	    defaultPerPage: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new UIPreferences(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.theme = source["theme"];
+	        this.defaultPerPage = source["defaultPerPage"];
+	    }
+	}
+	
+	export class UpdateSubscriptionsRequest {
+	    profileId: string;
+	    assets: Record<string, SubscriptionUpdateItem>;
+	    action: string;
+	    forceSync: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpdateSubscriptionsRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.profileId = source["profileId"];
+	        this.assets = this.convertValues(source["assets"], SubscriptionUpdateItem, true);
+	        this.action = source["action"];
+	        this.forceSync = source["forceSync"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class UserProfile {
+	    id: string;
+	    uuid: string;
+	    name: string;
+	    uiPreferences: UIPreferences;
+	    systemPreferences: SystemPreferences;
+	    subscriptions: Subscriptions;
+	    favorites: Favorites;
+	
+	    static createFrom(source: any = {}) {
+	        return new UserProfile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.uuid = source["uuid"];
+	        this.name = source["name"];
+	        this.uiPreferences = this.convertValues(source["uiPreferences"], UIPreferences);
+	        this.systemPreferences = this.convertValues(source["systemPreferences"], SystemPreferences);
+	        this.subscriptions = this.convertValues(source["subscriptions"], Subscriptions);
+	        this.favorites = this.convertValues(source["favorites"], Favorites);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class UpdateSubscriptionsResult {
+	    status: string;
+	    message: string;
+	    profile: UserProfile;
+	    persisted: boolean;
+	    operations: SubscriptionOperation[];
+	
+	    static createFrom(source: any = {}) {
+	        return new UpdateSubscriptionsResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.message = source["message"];
+	        this.profile = this.convertValues(source["profile"], UserProfile);
+	        this.persisted = source["persisted"];
+	        this.operations = this.convertValues(source["operations"], SubscriptionOperation);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

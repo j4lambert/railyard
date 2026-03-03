@@ -47,16 +47,35 @@ func NewRegistry() *Registry {
 	}
 }
 
-// Initialize clones the registry repo if it doesn't exist locally, or
-// fetches and hard-resets to origin/main if it does. This should be called
-// on app startup.
-func (r *Registry) Initialize() error {
-	return r.cloneOrUpdate()
+// Initialize ensures a valid local registry repo exists.
+// It does not force a remote refresh.
+func (r *Registry) initialize() error {
+	repo, err := git.PlainOpen(r.repoPath)
+	if err != nil {
+		// Directory doesn't exist or isn't a valid git repo -- (re)clone.
+		return r.forceClone()
+	}
+
+	// Existing repo is corrupt/unreadable; rebuild it.
+	if _, err := repo.Head(); err != nil {
+		return r.forceClone()
+	}
+
+	return nil
 }
 
 // Refresh forces a pull of the latest registry changes.
 func (r *Registry) Refresh() error {
-	return r.cloneOrUpdate()
+	repo, err := git.PlainOpen(r.repoPath)
+	if err != nil {
+		return r.forceClone()
+	}
+
+	if err := r.fetchAndReset(repo); err != nil {
+		// If fetch/reset fails the repo may be corrupted -- delete and re-clone.
+		return r.forceClone()
+	}
+	return nil
 }
 
 func (r *Registry) WriteInstalledToDisk() error {
@@ -93,19 +112,28 @@ func (r *Registry) fetchFromDisk() error {
 
 // cloneOrUpdate handles clone-if-missing and fetch+reset-if-exists logic.
 func (r *Registry) cloneOrUpdate() error {
+	if err := r.ensureLocalRepo(); err != nil {
+		return err
+	}
+
+	// Repo now exists and opens cleanly. Refresh to preserve legacy Initialize behavior.
+	return r.Refresh()
+}
+
+// ensureLocalRepo ensures a valid local clone exists without forcing a refresh.
+func (r *Registry) ensureLocalRepo() error {
 	// Try to open the existing repo
 	repo, err := git.PlainOpen(r.repoPath)
 	if err != nil {
-		// Directory doesn't exist or isn't a valid git repo -- (re)clone
+		// Directory doesn't exist or isn't a valid git repo -- (re)clone.
 		return r.forceClone()
 	}
 
-	// Repo exists, try to fetch + hard reset
-	err = r.fetchAndReset(repo)
-	if err != nil {
-		// If fetch/reset fails the repo may be corrupted -- delete and re-clone
+	// Existing repo is corrupt/unreadable; rebuild it.
+	if _, err := repo.Head(); err != nil {
 		return r.forceClone()
 	}
+
 	if err := r.fetchFromDisk(); err != nil {
 		return fmt.Errorf("failed to load registry data from disk after update: %w", err)
 	}

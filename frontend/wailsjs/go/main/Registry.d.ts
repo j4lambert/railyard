@@ -24,8 +24,10 @@ export function GetMods():Promise<Array<types.ModManifest>>;
 
 export function GetVersions(arg1:string,arg2:string):Promise<Array<types.VersionInfo>>;
 
-export function Initialize():Promise<void>;
-
 export function Refresh():Promise<void>;
+
+export function RemoveInstalledMap(arg1:string):Promise<void>;
+
+export function RemoveInstalledMod(arg1:string):Promise<void>;
 
 export function WriteInstalledToDisk():Promise<void>;
