@@ -214,12 +214,12 @@ func extractMap(d *Downloader, filePath string) types.MapExtractResponse {
 	if !filesFound["thumbnail"].Found && configData.ThumbnailBbox != nil {
 		thumbnailData, err := utils.GenerateThumbnail(configData.Code, configData)
 		if err != nil {
-			return d.throwMapExtractError("Failed to generate thumbnail", err, "map_code", configData.Code)
+			return d.warnMapExtractResponse("Failed to generate thumbnail, but map was extracted successfully. You can try generating the thumbnail later from the map details page.", configData, "file_path", filePath, "map_code", configData.Code)
 		}
 
 		thumbnailPath := path.Join(d.getMapThumbnailPath(), configData.Code+".svg")
 		if err := os.WriteFile(thumbnailPath, []byte(thumbnailData), os.ModePerm); err != nil {
-			return d.throwMapExtractError("Failed to save generated thumbnail", err, "map_code", configData.Code, "thumbnail_path", thumbnailPath)
+			return d.warnMapExtractResponse("Failed to save generated thumbnail, but map was extracted successfully. You can try generating the thumbnail later from the map details page.", configData, "file_path", filePath, "map_code", configData.Code, "thumbnail_path", thumbnailPath)
 		}
 	}
 
