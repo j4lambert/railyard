@@ -143,7 +143,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: linux-artifacts
+          name: linux-artifacts-${{matrix.type}}
           path: build/bin/railyard-${{ env.VERSION }}-${{ matrix.type }}-linux-amd64.AppImage
 
   build-windows:
@@ -217,7 +217,8 @@ jobs:
           files: |
             railyard-${{ env.VERSION }}-macos-universal.dmg
             railyard-${{ env.VERSION }}-macos-universal.zip
-            railyard-${{ env.VERSION }}-linux-amd64.AppImage
+            railyard-${{ env.VERSION }}-legacy-linux-amd64.AppImage
+            railyard-${{ env.VERSION }}-current-linux-amd64.AppImage
             railyard-${{ env.VERSION }}-windows-amd64-installer.exe
             railyard-${{ env.VERSION }}-windows-amd64-portable.zip
             railyard-${{ env.VERSION }}-windows-arm64-installer.exe
