@@ -186,8 +186,7 @@ jobs:
           files: |
             railyard-${{ env.VERSION }}-macos-universal.dmg
             railyard-${{ env.VERSION }}-macos-universal.zip
-            railyard-${{ env.VERSION }}-legacy-linux-amd64.AppImage
-            railyard-${{ env.VERSION }}-current-linux-amd64.AppImage
+            railyard-${{ env.VERSION }}-current-linux-amd64.flatpak
             railyard-${{ env.VERSION }}-windows-amd64-installer.exe
             railyard-${{ env.VERSION }}-windows-amd64-portable.zip
             railyard-${{ env.VERSION }}-windows-arm64-installer.exe
