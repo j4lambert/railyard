@@ -10,6 +10,7 @@ import (
 	"railyard/internal/logger"
 	"railyard/internal/registry"
 	"railyard/internal/types"
+	"railyard/internal/utils"
 )
 
 type UserProfiles struct {
@@ -48,6 +49,7 @@ func (s *UserProfiles) logRequest(method string, attrs ...any) {
 func newUpdateSubscriptionsResult(
 	status types.Status,
 	message string,
+	applied bool,
 	profile types.UserProfile,
 	persisted bool,
 	operations []types.SubscriptionOperation,
@@ -58,10 +60,14 @@ func newUpdateSubscriptionsResult(
 			Status:  status,
 			Message: message,
 		},
-		Profile:    profile,
-		Persisted:  persisted,
-		Operations: operations,
-		Errors:     profileErrors,
+		RequestType:  types.UpdateSubscriptions,
+		HasUpdates:   false,
+		PendingCount: 0,
+		Applied:      applied,
+		Profile:      profile,
+		Persisted:    persisted,
+		Operations:   operations,
+		Errors:       profileErrors,
 	}
 }
 
@@ -93,6 +99,34 @@ func userProfilesError(profileID, assetID string, assetType types.AssetType, err
 		ErrorType: errorType,
 		Message:   strings.TrimSpace(message),
 	}
+}
+
+func profileNotFoundError(profileID string) types.UserProfilesError {
+	return userProfilesError(profileID, "", "", types.ErrorProfileNotFound, fmt.Sprintf("Profile %q not found", profileID))
+}
+
+func profileFromState(state types.UserProfilesState, profileID string) (types.UserProfile, *types.UserProfilesError) {
+	profile, ok := state.Profiles[profileID]
+	if !ok {
+		err := profileNotFoundError(profileID)
+		return types.UserProfile{}, &err
+	}
+	return profile, nil
+}
+
+func (s *UserProfiles) profileSnapshot(profileID string) (types.UserProfile, *types.UserProfilesError) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Read a snapshot of current subscriptions at invocation time.
+	profile, profileErr := profileFromState(s.state, profileID)
+	if profileErr != nil {
+		return types.UserProfile{}, profileErr
+	}
+
+	profile.Subscriptions.Maps = utils.CloneMap(profile.Subscriptions.Maps)
+	profile.Subscriptions.Mods = utils.CloneMap(profile.Subscriptions.Mods)
+	return profile, nil
 }
 
 func updateSubscriptionError(profileID, assetID string, assetType types.AssetType, errorType types.UserProfilesErrorType, err error) types.UserProfilesError {

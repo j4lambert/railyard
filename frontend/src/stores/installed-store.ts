@@ -4,6 +4,7 @@ import { GetInstalledMods, GetInstalledMaps } from '../../wailsjs/go/registry/Re
 import { GetActiveProfile, UpdateSubscriptions } from '../../wailsjs/go/profiles/UserProfiles';
 import { useDownloadQueueStore } from './download-queue-store';
 import type { AssetType } from "@/lib/asset-types";
+import { emitDownloadCancelled } from "@/lib/download-cancel";
 
 export class SubscriptionSyncError extends Error {
   readonly status: string;
@@ -48,9 +49,12 @@ interface InstalledState {
   uninstallMod: (id: string) => Promise<types.UpdateSubscriptionsResult>;
   uninstallMap: (id: string) => Promise<types.UpdateSubscriptionsResult>;
   uninstallAssets: (assets: Array<{ id: string; type: AssetType }>) => Promise<types.UpdateSubscriptionsResult>;
+  cancelPendingInstall: (type: AssetType, id: string) => Promise<types.UpdateSubscriptionsResult>;
   isInstalled: (id: string) => boolean;
   getInstalledVersion: (id: string) => string | null;
   isOperating: (id: string) => boolean;
+  isInstalling: (id: string) => boolean;
+  isUninstalling: (id: string) => boolean;
   updateInstalledLists: () => Promise<void>;
 }
 
@@ -119,7 +123,7 @@ export const useInstalledStore = create<InstalledState>((set, get) => {
       forceSync: true,
     });
     const result = await UpdateSubscriptions(request);
-    if (result.status !== "success") {
+    if (result.status === "error") {
       throw new SubscriptionSyncError(
         resolveSubscriptionSyncMessage(result, "Subscription update failed"),
         result.status,
@@ -235,6 +239,12 @@ export const useInstalledStore = create<InstalledState>((set, get) => {
 
   uninstallAssets,
 
+  cancelPendingInstall: async (type: AssetType, id: string) => {
+    const result = await uninstallAssets([{ id, type }]);
+    emitDownloadCancelled(id);
+    return result;
+  },
+
   isInstalled: (id: string) => {
     const { installedMods, installedMaps } = get();
     return installedMods.some((m) => m.id === id) || installedMaps.some((m) => m.id === id);
@@ -252,5 +262,9 @@ export const useInstalledStore = create<InstalledState>((set, get) => {
   isOperating: (id: string) => {
     return get().installing.has(id) || get().uninstalling.has(id);
   },
+
+  isInstalling: (id: string) => get().installing.has(id),
+
+  isUninstalling: (id: string) => get().uninstalling.has(id),
   });
 });

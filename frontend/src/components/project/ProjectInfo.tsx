@@ -23,7 +23,7 @@ import {
   Trash2,
   CheckCircle,
   Download,
-  TriangleAlert,
+  X,
 } from "lucide-react";
 import Markdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
@@ -33,7 +33,8 @@ import { formatSourceQuality } from "@/lib/map-filter-values";
 import { useDownloadQueueStore } from "@/stores/download-queue-store";
 import type { AssetType } from "@/lib/asset-types";
 import {
-  INSTALL_SUBSCRIPTION_SYNC_FAILED_TOAST,
+  isCancellationSyncError,
+  isCancellationMessage,
   toSubscriptionSyncErrorState,
 } from "@/lib/subscription-sync-error";
 
@@ -60,6 +61,7 @@ export function ProjectInfo({
   versionsLoading,
   gameVersion,
 }: ProjectInfoProps) {
+  const cancellationToastId = `cancel-install-${type}-${item.id}`;
   const [uninstallOpen, setUninstallOpen] = useState(false);
   const [installError, setInstallError] = useState<{
     version: string;
@@ -71,11 +73,12 @@ export function ProjectInfo({
     message: string;
     errors: types.UserProfilesError[];
   } | null>(null);
-  const { installMod, installMap, getInstalledVersion, isOperating } =
+  const { installMod, installMap, cancelPendingInstall, getInstalledVersion, isInstalling, isUninstalling } =
     useInstalledStore();
 
   const installedVersion = getInstalledVersion(item.id);
-  const installing = isOperating(item.id);
+  const installing = isInstalling(item.id);
+  const uninstalling = isUninstalling(item.id);
   const detailBadges = isMapManifest(item)
     ? [
         item.location,
@@ -96,10 +99,19 @@ export function ProjectInfo({
 
   const handleInstall = async (version: string) => {
     try {
+      let result: types.UpdateSubscriptionsResult;
       if (type === "mod") {
-        await installMod(item.id, version);
+        result = await installMod(item.id, version);
       } else {
-        await installMap(item.id, version);
+        result = await installMap(item.id, version);
+      }
+      if (result.status === "warn") {
+        if (isCancellationMessage(result.message)) {
+          toast.success(`Cancelled pending install for ${item.name}.`, { id: cancellationToastId });
+        } else {
+          toast.warning(result.message || `Install for ${item.name} completed with warnings.`);
+        }
+        return;
       }
       const { completed, total } = useDownloadQueueStore.getState();
       const queueText = total > 1 ? ` (${completed}/${total} Downloaded)` : "";
@@ -109,9 +121,10 @@ export function ProjectInfo({
     } catch (err) {
       const syncError = toSubscriptionSyncErrorState(err, version);
       if (syncError) {
-        toast.warning(INSTALL_SUBSCRIPTION_SYNC_FAILED_TOAST, {
-          icon: <TriangleAlert className="h-4 w-4 text-amber-500" />,
-        });
+        if (useInstalledStore.getState().isUninstalling(item.id) || isCancellationSyncError(syncError)) {
+          toast.success(`Cancelled pending install for ${item.name}.`, { id: cancellationToastId });
+          return;
+        }
         setSubscriptionSyncError(syncError);
       } else {
         setInstallError({
@@ -119,6 +132,15 @@ export function ProjectInfo({
           message: err instanceof Error ? err.message : String(err),
         });
       }
+    }
+  };
+
+  const handleCancelInstall = async () => {
+    try {
+      await cancelPendingInstall(type, item.id);
+      toast.success(`Cancelled pending install for ${item.name}.`, { id: cancellationToastId });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -188,10 +210,15 @@ export function ProjectInfo({
               <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
               Loading...
             </Button>
-          ) : installing ? (
+          ) : uninstalling ? (
             <Button size="sm" disabled>
               <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-              Installing...
+              Canceling...
+            </Button>
+          ) : installing ? (
+            <Button size="sm" variant="outline" onClick={handleCancelInstall}>
+              <X className="h-4 w-4 mr-1.5" />
+              Cancel Install
             </Button>
           ) : !installedVersion && effectiveVersion ? (
             renderInstallButton(

@@ -79,6 +79,19 @@ type UpdateSubscriptionsRequest struct {
 	ForceSync bool                              `json:"forceSync"`
 }
 
+type UpdateAllSubscriptionsToLatestRequest struct {
+	ProfileID string `json:"profileId"`
+	Apply     bool   `json:"apply"`
+}
+
+type UpdateSubscriptionRequestType string
+
+const (
+	UpdateSubscriptions UpdateSubscriptionRequestType = "update_subscriptions"
+	LatestCheck         UpdateSubscriptionRequestType = "latest_check"
+	LatestApply         UpdateSubscriptionRequestType = "latest_apply"
+)
+
 type SubscriptionOperation struct {
 	AssetID string             `json:"assetId"`
 	Type    AssetType          `json:"type"`
@@ -124,10 +137,14 @@ type UserProfileResult struct {
 
 type UpdateSubscriptionsResult struct {
 	GenericResponse
-	Profile    UserProfile             `json:"profile"`
-	Persisted  bool                    `json:"persisted"`
-	Operations []SubscriptionOperation `json:"operations"`
-	Errors     []UserProfilesError     `json:"errors"`
+	RequestType  UpdateSubscriptionRequestType `json:"requestType"`
+	HasUpdates   bool                          `json:"hasUpdates"`
+	PendingCount int                           `json:"pendingCount"`
+	Applied      bool                          `json:"applied"`
+	Profile      UserProfile                   `json:"profile"`
+	Persisted    bool                          `json:"persisted"`
+	Operations   []SubscriptionOperation       `json:"operations"`
+	Errors       []UserProfilesError           `json:"errors"`
 }
 
 type SyncSubscriptionsResult struct {
@@ -135,14 +152,6 @@ type SyncSubscriptionsResult struct {
 	ProfileID  string                  `json:"profileId"`
 	Operations []SubscriptionOperation `json:"operations"`
 	Errors     []UserProfilesError     `json:"errors"`
-}
-
-type SubscriptionUpdatesAvailabilityResult struct {
-	GenericResponse
-	ProfileID     string              `json:"profileId"`
-	HasUpdates    bool                `json:"hasUpdates"`
-	PendingCount  int                 `json:"pendingCount"`
-	Errors        []UserProfilesError `json:"errors"`
 }
 
 // UserProfile represents a profile within the application.

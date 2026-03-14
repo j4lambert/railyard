@@ -18,11 +18,11 @@ import {
 } from "@/components/ui/tooltip";
 import {
   Download,
+  X,
   FileText,
   ArrowDownToLine,
   Loader2,
   CheckCircle,
-  TriangleAlert,
 } from "lucide-react";
 import { useInstalledStore } from "@/stores/installed-store";
 import { types } from "../../../wailsjs/go/models";
@@ -36,7 +36,8 @@ import { toast } from "sonner";
 import { useDownloadQueueStore } from "@/stores/download-queue-store";
 import type { AssetType } from "@/lib/asset-types";
 import {
-  INSTALL_SUBSCRIPTION_SYNC_FAILED_TOAST,
+  isCancellationSyncError,
+  isCancellationMessage,
   toSubscriptionSyncErrorState,
 } from "@/lib/subscription-sync-error";
 
@@ -60,8 +61,15 @@ export function VersionsTable({
   error,
   gameVersion,
 }: VersionsTableProps) {
-  const { getInstalledVersion, installMod, installMap, isOperating } =
-    useInstalledStore();
+  const {
+    getInstalledVersion,
+    installMod,
+    installMap,
+    cancelPendingInstall,
+    isInstalling,
+    isUninstalling,
+  } = useInstalledStore();
+  const cancellationToastId = `cancel-install-${type}-${itemId}`;
   const installedVersion = getInstalledVersion(itemId);
   const [installError, setInstallError] = useState<{
     version: string;
@@ -78,10 +86,24 @@ export function VersionsTable({
 
   const doInstall = async (version: string) => {
     try {
+      let result: types.UpdateSubscriptionsResult;
       if (type === "mod") {
-        await installMod(itemId, version);
+        result = await installMod(itemId, version);
       } else {
-        await installMap(itemId, version);
+        result = await installMap(itemId, version);
+      }
+      if (result.status === "warn") {
+        if (isCancellationMessage(result.message)) {
+          toast.success(`Cancelled pending install for ${itemName}.`, {
+            id: cancellationToastId,
+          });
+        } else {
+          toast.warning(
+            result.message ||
+              `Install for ${itemName} completed with warnings.`,
+          );
+        }
+        return;
       }
       const { completed, total } = useDownloadQueueStore.getState();
       const queueText = total > 1 ? ` (${completed}/${total} Downloaded)` : "";
@@ -89,9 +111,15 @@ export function VersionsTable({
     } catch (err) {
       const syncError = toSubscriptionSyncErrorState(err, version);
       if (syncError) {
-        toast.warning(INSTALL_SUBSCRIPTION_SYNC_FAILED_TOAST, {
-          icon: <TriangleAlert className="h-4 w-4 text-amber-500" />,
-        });
+        if (
+          useInstalledStore.getState().isUninstalling(itemId) ||
+          isCancellationSyncError(syncError)
+        ) {
+          toast.success(`Cancelled pending install for ${itemName}.`, {
+            id: cancellationToastId,
+          });
+          return;
+        }
         setSubscriptionSyncError(syncError);
       } else {
         setInstallError({
@@ -99,6 +127,17 @@ export function VersionsTable({
           message: err instanceof Error ? err.message : String(err),
         });
       }
+    }
+  };
+
+  const cancelInstall = async () => {
+    try {
+      await cancelPendingInstall(type, itemId);
+      toast.success(`Cancelled pending install for ${itemName}.`, {
+        id: cancellationToastId,
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -171,7 +210,8 @@ export function VersionsTable({
           <TableBody>
             {versions.map((v) => {
               const isThisInstalled = installedVersion === v.version;
-              const isInstalling = isOperating(itemId);
+              const installing = isInstalling(itemId);
+              const uninstalling = isUninstalling(itemId);
               const compat = isCompatible(gameVersion, v.game_version);
               const incompatible = compat === false;
 
@@ -232,9 +272,17 @@ export function VersionsTable({
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
-                    ) : isInstalling ? (
+                    ) : uninstalling ? (
                       <Button variant="outline" size="sm" disabled>
                         <Loader2 className="h-4 w-4 animate-spin" />
+                      </Button>
+                    ) : installing ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={cancelInstall}
+                      >
+                        <X className="h-4 w-4" />
                       </Button>
                     ) : (
                       <Button
