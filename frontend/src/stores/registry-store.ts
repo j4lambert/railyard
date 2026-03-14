@@ -5,6 +5,7 @@ import {
   GetMaps,
   GetMods,
   Refresh,
+  GetIntegrityReport
 } from "../../wailsjs/go/registry/Registry";
 import { ASSET_TYPES, type AssetType } from "@/lib/asset-types";
 import { toCumulativeDownloadTotals } from "@/lib/download-totals";
@@ -12,6 +13,8 @@ import { toCumulativeDownloadTotals } from "@/lib/download-totals";
 interface RegistryState {
   mods: types.ModManifest[];
   maps: types.MapManifest[];
+  mapIntegrity: types.RegistryIntegrityReport | null;
+  modIntegrity: types.RegistryIntegrityReport | null;
   modDownloadTotals: Record<string, number>;
   mapDownloadTotals: Record<string, number>;
   downloadTotalsLoaded: boolean;
@@ -32,9 +35,41 @@ function emptyRecordByAssetType<T>(factory: () => T): Record<AssetType, T> {
   ) as Record<AssetType, T>;
 }
 
+function filterMapsAndModsByIntegrity(maps: types.MapManifest[], mods: types.ModManifest[], mapIntegrity: types.RegistryIntegrityReport, modIntegrity: types.RegistryIntegrityReport) {
+  const finalMaps = [];
+  const finalMods = [];
+  let invalidCounter = 0;
+  for(const mod of mods) {
+    if(modIntegrity.listings[mod.id].has_complete_version) {
+      finalMods.push(mod);
+    } else {
+      invalidCounter++;
+    }
+  }
+  if(invalidCounter > 0) {
+    console.warn(`Excluding ${invalidCounter} mods from registry due to incomplete versions`);
+  }
+
+  invalidCounter = 0;
+  for(const map of maps) {
+    if(mapIntegrity.listings[map.id].has_complete_version) {
+      finalMaps.push(map);
+    }
+    else {
+      invalidCounter++;
+    }
+  }
+  if(invalidCounter > 0) {
+    console.warn(`Excluding ${invalidCounter} maps from registry due to incomplete versions`);
+  }
+  return { finalMaps, finalMods };
+}
+
 export const useRegistryStore = create<RegistryState>((set, get) => ({
   mods: [],
   maps: [],
+  mapIntegrity: null,
+  modIntegrity: null,
   modDownloadTotals: {},
   mapDownloadTotals: {},
   downloadTotalsLoaded: false,
@@ -96,10 +131,13 @@ export const useRegistryStore = create<RegistryState>((set, get) => ({
     if (get().initialized) return;
     set({ loading: true, error: null });
     try {
-      const [mods, maps] = await Promise.all([GetMods(), GetMaps()]);
+      const [mods, maps, mapIntegrity, modIntegrity] = await Promise.all([GetMods(), GetMaps(), GetIntegrityReport("map"), GetIntegrityReport("mod")]);
+      const {finalMaps, finalMods} = filterMapsAndModsByIntegrity(maps, mods, mapIntegrity, modIntegrity);
       set({
-        mods: mods || [],
-        maps: maps || [],
+        mods: finalMods || [],
+        maps: finalMaps || [],
+        mapIntegrity: mapIntegrity || null,
+        modIntegrity: modIntegrity || null,
         initialized: true,
         loading: false,
       });
@@ -112,13 +150,15 @@ export const useRegistryStore = create<RegistryState>((set, get) => ({
     set({ refreshing: true, error: null });
     try {
       await Refresh();
-      const [mods, maps] = await Promise.all([GetMods(), GetMaps()]);
+      const [mods, maps, mapIntegrity, modIntegrity] = await Promise.all([GetMods(), GetMaps(), GetIntegrityReport("map"), GetIntegrityReport("mod")]);
+      const {finalMaps, finalMods} = filterMapsAndModsByIntegrity(maps, mods, mapIntegrity, modIntegrity);
       set({
-        mods: mods || [],
-        maps: maps || [],
-        modDownloadTotals: {},
-        mapDownloadTotals: {},
-        downloadTotalsLoaded: false,
+        mods: finalMods || [],
+        maps: finalMaps || [],
+        mapIntegrity: mapIntegrity || null,
+        modIntegrity: modIntegrity || null,
+        initialized: true,
+        loading: false,
       });
       await get().ensureDownloadTotals();
       set({ refreshing: false });
