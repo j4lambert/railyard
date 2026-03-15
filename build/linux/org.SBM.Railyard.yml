@@ -10,6 +10,7 @@ finish-args:
   # Needs X11, Wayland, Network, Filesystem
   - --share=network
   - --filesystem=host
+  - --filesystem=/tmp
   - --share=ipc
   - --socket=fallback-x11
   - --socket=wayland
