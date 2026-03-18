@@ -50,6 +50,8 @@ type App struct {
 	pmtilesServer *http.Server
 	startupMu     sync.RWMutex
 	startupReady  bool
+
+	deepLinks deepLinkQueue
 }
 
 func (a *App) OpenInFileExplorer(targetPath string) types.GenericResponse {
@@ -165,6 +167,7 @@ func (a *App) startup(ctx context.Context) {
 
 	// Registry must be initialized + startup profile ready so that initial Frontend state is viable.
 	a.setStartupReady(true)
+	a.emitPendingDeepLinks()
 	go runNonBlockingStartupRoutines(a, activeProfile)
 }
 
