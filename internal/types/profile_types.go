@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/shirou/gopsutil/v4/mem"
 )
 
 // ThemeMode represents the UI theme preference of a user profile.
@@ -50,6 +51,8 @@ type UIPreferences struct {
 type SystemPreferences struct {
 	RefreshRegistryOnStartup bool `json:"refreshRegistryOnStartup"` // Whether to refresh the registry on application startup
 	// AutoUpdateSubscriptions  bool `json:"autoUpdateSubscriptions"`  // Whether to automatically update subscribed maps/mods when new versions are released
+	ExtraHeapSize int  `json:"extraMemorySize,omitempty"` // Amount of memory to allocate to the game, if specified by the user (in MB). This is an optional preference that can help improve performance for users with larger libraries or lower-end hardware.
+	UseDevTools   bool `json:"useDevTools,omitempty"`     // Whether to enable developer tools for the game on launch.
 }
 
 // Favorites represents favorite authors/maps/mods for a profile.
@@ -217,6 +220,8 @@ func defaultUIPreferences() UIPreferences {
 func defaultSystemPreferences() SystemPreferences {
 	return SystemPreferences{
 		RefreshRegistryOnStartup: true,
+		ExtraHeapSize:            -1,
+		UseDevTools:              false,
 		// AutoUpdateSubscriptions:  false,
 	}
 }
@@ -304,7 +309,16 @@ func areValidUIPreferences(prefs UIPreferences) bool {
 }
 
 func areValidSystemPreferences(prefs SystemPreferences) bool {
-	// No validation rules for system preferences given all fields are boolean and will default to false if missing on parse
+	ramMax, err := mem.VirtualMemory()
+	maxVal := int(ramMax.Total / (1024 * 1024)) // convert to MB
+	if prefs.ExtraHeapSize < -1 {
+		return false
+	}
+
+	// Not bracketed to 5/8ths, developers and those who know what they're doing can manually set it higher
+	if err == nil && prefs.ExtraHeapSize >= int(maxVal) {
+		return false
+	}
 	return true
 }
 

@@ -1198,6 +1198,8 @@ export namespace types {
 	}
 	export class SystemPreferences {
 	    refreshRegistryOnStartup: boolean;
+	    extraMemorySize?: number;
+	    useDevTools?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new SystemPreferences(source);
@@ -1206,6 +1208,8 @@ export namespace types {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.refreshRegistryOnStartup = source["refreshRegistryOnStartup"];
+	        this.extraMemorySize = source["extraMemorySize"];
+	        this.useDevTools = source["useDevTools"];
 	    }
 	}
 	export class UIPreferences {

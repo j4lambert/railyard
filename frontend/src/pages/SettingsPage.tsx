@@ -5,9 +5,9 @@
   Gamepad2,
   Github,
   RefreshCw,
-  Shield,
+  Shield
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { ThemePicker, type ThemeValue } from '@/components/shared/ThemePicker';
@@ -45,6 +45,7 @@ import { useProfileStore } from '@/stores/profile-store';
 
 import {
   GetPlatform,
+  GetTotalMemory,
   InstallLinuxSandbox,
   ManuallyCheckForUpdates,
   SandboxIsInstalled,
@@ -89,7 +90,28 @@ export function SettingsPage() {
   const profile = useProfileStore((s) => s.profile);
   const resetProfile = useProfileStore((s) => s.resetProfile);
   const updateUIPreferences = useProfileStore((s) => s.updateUIPreferences);
+  const updateCommandLineArgs = useProfileStore((s) => s.updateCommandLineArgs);
   const [showThemePreviews, setShowThemePreviews] = useState(false);
+  const [extraMemoryDraft, setExtraMemoryDraft] = useState('');
+  const [MAX_MEMORY_MB, setMaxMemoryMB] = useState<number | null>(null);
+
+  const MIN_MEMORY_MB = 4096;
+
+  useEffect(() => {
+    GetTotalMemory().then((totalMemoryMB) => {
+      setMaxMemoryMB(Math.floor(totalMemoryMB * (5/8)));
+    });
+  }, []);
+
+  useEffect(() => {
+    if (profile?.systemPreferences?.extraMemorySize !== -1) {
+      setExtraMemoryDraft(
+        String(profile?.systemPreferences?.extraMemorySize ?? ''),
+      );
+    } else {
+      setExtraMemoryDraft('');
+    }
+  }, [profile?.systemPreferences?.extraMemorySize]);
 
   const handleCheckToken = async () => {
     let req = await fetch('https://api.github.com/rate_limit', {
@@ -165,6 +187,46 @@ export function SettingsPage() {
       );
     } catch {
       toast.error('Failed to update check for updates on launch setting.');
+    }
+  };
+
+  const handleSaveExtraMemory = async () => {
+    if (!profile) return;
+    const parsed = Number.parseInt(extraMemoryDraft, 10);
+
+    if (!Number.isFinite(parsed) || parsed < MIN_MEMORY_MB || parsed > MAX_MEMORY_MB!) {
+      toast.error('Extra memory size must be between 4096 MB and no more than about 60% of your system memory (' + MAX_MEMORY_MB! + ' MB).');
+      return;
+    }
+
+    try {
+      await updateCommandLineArgs({ extraMemorySize: parsed });
+      toast.success('Extra memory size updated.');
+    } catch {
+      toast.error('Failed to update extra memory size.');
+    }
+  };
+
+  const handleClearExtraMemory = async () => {
+    if (!profile) return;
+    try {
+      setExtraMemoryDraft('');
+      await updateCommandLineArgs({ extraMemorySize: -1 });
+      toast.success('Extra memory size cleared.');
+    } catch {
+      toast.error('Failed to clear extra memory size.');  
+    }
+  };
+
+  const handleToggleDevTools = async () => {
+    if (!profile) return;
+    const newValue = !profile.systemPreferences?.useDevTools;
+
+    try {
+      await updateCommandLineArgs({ useDevTools: newValue });
+      toast.success(`Developer tools ${newValue ? 'enabled' : 'disabled'}.`);
+    } catch {
+      toast.error('Failed to update developer tools setting.');
     }
   };
 
@@ -431,9 +493,9 @@ export function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Preferences</CardTitle>
+          <CardTitle>UI Preferences</CardTitle>
           <CardDescription>
-            Display and behavior preferences from your profile.
+            Display preferences from your profile.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -515,6 +577,17 @@ export function SettingsPage() {
             </Select>
           </div>
 
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>System Preferences</CardTitle>
+          <CardDescription>
+            System behavior preferences and update settings.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium">
               Check For Updates On Launch
@@ -532,6 +605,40 @@ export function SettingsPage() {
                 Check For Updates
               </Button>
             </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium">
+              Extra Memory for Game (MB)
+            </label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={MIN_MEMORY_MB}
+                max={MAX_MEMORY_MB ?? undefined}
+                placeholder={MAX_MEMORY_MB !== null ? MAX_MEMORY_MB!.toString() : "8192"}
+                value={extraMemoryDraft}
+                onChange={(event) => setExtraMemoryDraft(event.target.value)}
+                className="w-[8lvh]"
+              />
+              <Button variant="outline" size="sm" onClick={handleClearExtraMemory}>
+                Clear
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleSaveExtraMemory}>
+                Save
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium">Use Developer Tools</label>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleToggleDevTools}
+            >
+              {profile?.systemPreferences.useDevTools ? 'Disable' : 'Enable'}
+            </Button>
           </div>
         </CardContent>
       </Card>
