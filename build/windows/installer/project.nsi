@@ -34,9 +34,13 @@ Unicode true
 ####
 !include "wails_tools.nsh"
 
-# The version information for this two must consist of 4 parts
-VIProductVersion "${INFO_PRODUCTVERSION}.0"
-VIFileVersion    "${INFO_PRODUCTVERSION}.0"
+# Detect if this is an RC release (format: vX.Y.Z+rc.W) and set version accordingly
+# RC releases use the version as-is, regular releases get .0 appended
+!system "powershell -NoProfile -Command \"$$v = '${INFO_PRODUCTVERSION}'; if ($$v -match '\+rc') { @('!define FINAL_VERSION ', $$v) -join '' | Out-File version.nsh -Encoding ASCII -NoNewline } else { @('!define FINAL_VERSION ', $$v, '.0') -join '' | Out-File version.nsh -Encoding ASCII -NoNewline }\""
+!include version.nsh
+
+VIProductVersion "${FINAL_VERSION}"
+VIFileVersion    "${FINAL_VERSION}"
 
 VIAddVersionKey "CompanyName"     "${INFO_COMPANYNAME}"
 VIAddVersionKey "FileDescription" "${INFO_PRODUCTNAME} Installer"
