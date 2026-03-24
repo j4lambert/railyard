@@ -34,10 +34,12 @@ Unicode true
 ####
 !include "wails_tools.nsh"
 
-# Detect if this is an RC release (format: vX.Y.Z+rc.W) and set version accordingly
-# RC releases use the version as-is, regular releases get .0 appended
-!system "powershell -NoProfile -Command \"$$v = '${INFO_PRODUCTVERSION}'; if ($$v -match '\+rc') { @('!define FINAL_VERSION ', $$v) -join '' | Out-File version.nsh -Encoding ASCII -NoNewline } else { @('!define FINAL_VERSION ', $$v, '.0') -join '' | Out-File version.nsh -Encoding ASCII -NoNewline }\""
-!include version.nsh
+# Version is auto-generated based on wails.json productVersion
+# If it contains "+rc", version is used as-is; otherwise .0 is appended
+!include /NONFATAL "version.nsh"
+!ifndef FINAL_VERSION
+  !define FINAL_VERSION "${INFO_PRODUCTVERSION}.0"
+!endif
 
 VIProductVersion "${FINAL_VERSION}"
 VIFileVersion    "${FINAL_VERSION}"
