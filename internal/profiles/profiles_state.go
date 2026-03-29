@@ -543,6 +543,20 @@ func (s *UserProfiles) SwapProfile(req types.SwapProfileRequest) types.UserProfi
 	if targetErrResult != nil {
 		return *targetErrResult
 	}
+	// Empty target profiles do not need confirmation for missing/stale archives.
+	// Create a deterministic empty archive so restore can run through the standard path.
+	if !isTargetArchiveFresh && !profileHasSubscriptions(targetProfile) {
+		archiveResult := s.CreateProfileArchive(targetProfile.ID)
+		if archiveResult.Status == types.ResponseError {
+			s.Logger.Error("Failed to create target profile archive before swap", errors.New(archiveResult.Message), "profile_id", targetProfile.ID)
+			return profileStateErrorResult(
+				"Failed to create target profile archive before swap",
+				currentProfile,
+				userProfilesError(targetProfile.ID, "", "", types.ErrorArchiveUpdate, "", "Failed to create target profile archive before swap: "+archiveResult.Message),
+			)
+		}
+		isTargetArchiveFresh = true
+	}
 	// If the target archive is not fresh, request confirmation before proceeding.
 	if !isTargetArchiveFresh && !req.ForceSwap {
 		errorType := types.ErrorArchiveStale
@@ -566,20 +580,6 @@ func (s *UserProfiles) SwapProfile(req types.SwapProfileRequest) types.UserProfi
 			},
 		}
 	}
-	// For empty target profiles, force-swap should create a deterministic empty archive and restore from it.
-	if !isTargetArchiveFresh && req.ForceSwap && !profileHasSubscriptions(targetProfile) {
-		archiveResult := s.CreateProfileArchive(targetProfile.ID)
-		if archiveResult.Status == types.ResponseError {
-			s.Logger.Error("Failed to create target profile archive before swap", errors.New(archiveResult.Message), "profile_id", targetProfile.ID)
-			return profileStateErrorResult(
-				"Failed to create target profile archive before swap",
-				currentProfile,
-				userProfilesError(targetProfile.ID, "", "", types.ErrorArchiveUpdate, "", "Failed to create target profile archive before swap: "+archiveResult.Message),
-			)
-		}
-		isTargetArchiveFresh = true
-	}
-
 	// Proceed with the swap once we determine that both the current and target profile archives are in a known state (and after confirming with the user if the target archive is not fresh)
 	swappedProfile, persistErr := s.setActiveProfile(targetProfile.ID)
 	if persistErr != nil {
@@ -592,6 +592,7 @@ func (s *UserProfiles) SwapProfile(req types.SwapProfileRequest) types.UserProfi
 	}
 
 	// If the target archive is fresh, we can restore from archive.
+	// TODO(profiles): Before restore, aggressively purge all Railyard-managed assets not present in the target profile's installed metadata to avoid stale on-disk collisions and reduce disk usage. This is deferred until we can reliably validate map version equality fromconfig.json for all managed maps (requires adoption of 0.2.0).
 	if isTargetArchiveFresh {
 		restoreResult := s.RestoreProfileArchive(targetProfile.ID)
 		if restoreResult.Status == types.ResponseError {

@@ -183,7 +183,7 @@ func TestSwapProfileWarnsWithoutForceWhenTargetArchiveMissing(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestSwapProfileWithoutSubscriptionsWarnsWhenArchiveMissing(t *testing.T) {
+func TestSwapProfileWithoutSubscriptionsSwapsWithoutArchiveWarning(t *testing.T) {
 	testutil.NewHarness(t)
 
 	state := types.InitialProfilesState()
@@ -191,14 +191,14 @@ func TestSwapProfileWithoutSubscriptionsWarnsWhenArchiveMissing(t *testing.T) {
 	state.Profiles[target.ID] = target
 	svc := loadedUserProfilesService(t, state)
 
-	current := svc.GetActiveProfile().Profile
 	result := svc.SwapProfile(types.SwapProfileRequest{ProfileID: target.ID})
-	require.Equal(t, types.ResponseWarn, result.Status)
-	require.True(t, findProfileErrorType(result.Errors, types.ErrorArchiveMissing))
+	require.Equal(t, types.ResponseSuccess, result.Status)
+	require.Equal(t, target.ID, result.Profile.ID)
+	require.Empty(t, result.Errors)
 
 	activeAfter := svc.GetActiveProfile()
 	require.Equal(t, types.ResponseSuccess, activeAfter.Status)
-	require.Equal(t, current.ID, activeAfter.Profile.ID)
+	require.Equal(t, target.ID, activeAfter.Profile.ID)
 }
 
 func TestSwapProfileForceWithoutArchiveSwapsAndSyncs(t *testing.T) {
