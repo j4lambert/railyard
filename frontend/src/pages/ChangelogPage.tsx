@@ -42,6 +42,11 @@ import { listingPathToAssetType } from '@/lib/asset-types';
 import { getLocalAccentClasses } from '@/lib/local-accent';
 import { isCompatible } from '@/lib/semver';
 import {
+  handleSubscriptionMutationError,
+  useSubscriptionMutationLockState,
+  withLockAwareConfirm,
+} from '@/lib/subscription-mutation-ui';
+import {
   hasCancellationSyncErrors,
   hasOnlySilentSyncWarnings,
   isCancellationSyncError,
@@ -161,6 +166,8 @@ export function ChangelogPage() {
   const installing = item ? isInstalling(item.id) : false;
   const uninstalling = item ? isUninstalling(item.id) : false;
   const cancellationToastId = `cancel-install-${type}-${id}`;
+  const { locked: mutationLocked, reason: mutationLockedReason } =
+    useSubscriptionMutationLockState();
 
   const projectHref =
     routeType && id ? `/project/${routeType}/${id}` : '/browse';
@@ -283,6 +290,9 @@ export function ChangelogPage() {
         `${item.name} ${version} installed successfully.${queueText}`,
       );
     } catch (err) {
+      if (handleSubscriptionMutationError(err, () => {})) {
+        return;
+      }
       if (err instanceof AssetConflictError && err.conflicts.length > 0) {
         setConflictState({ version, conflict: err.conflicts[0] });
         return;
@@ -315,8 +325,10 @@ export function ChangelogPage() {
       await uninstallAssets([{ id: item.id, type }]);
       toast.success(`${item.name} has been uninstalled.`);
       setUninstallOpen(false);
-    } catch {
-      toast.error(`Failed to uninstall ${item.name}.`);
+    } catch (err) {
+      if (!handleSubscriptionMutationError(err, () => {})) {
+        toast.error(`Failed to uninstall ${item.name}.`);
+      }
     } finally {
       setUninstallLoading(false);
     }
@@ -377,9 +389,12 @@ export function ChangelogPage() {
                 id: cancellationToastId,
               });
             } catch (err) {
-              toast.error(err instanceof Error ? err.message : String(err));
+              if (!handleSubscriptionMutationError(err, () => {})) {
+                toast.error(err instanceof Error ? err.message : String(err));
+              }
             }
           }}
+          disabled={mutationLocked}
         >
           <X className="h-4 w-4" />
           Cancel Install
@@ -401,6 +416,7 @@ export function ChangelogPage() {
             size="icon-sm"
             onClick={() => setUninstallOpen(true)}
             aria-label="Uninstall"
+            disabled={mutationLocked}
           >
             <X className="h-4 w-4" />
           </Button>
@@ -439,6 +455,7 @@ export function ChangelogPage() {
             doInstall(versionInfo.version);
           }
         }}
+        disabled={mutationLocked}
       >
         <Download className="h-4 w-4" />
         Install {versionInfo.version}
@@ -670,11 +687,15 @@ export function ChangelogPage() {
         description="This will permanently remove all installed files. You can reinstall it later from the Browse page."
         icon={OctagonX}
         tone="uninstall"
-        confirm={{
-          label: 'Uninstall',
-          onConfirm: handleUninstall,
-          loading: uninstallLoading,
-        }}
+        confirm={withLockAwareConfirm(
+          {
+            label: 'Uninstall',
+            onConfirm: handleUninstall,
+            loading: uninstallLoading,
+          },
+          mutationLocked,
+          mutationLockedReason,
+        )}
       >
         <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
           <span className="font-medium text-foreground">{item.name}</span>
@@ -697,13 +718,17 @@ export function ChangelogPage() {
             </>
           }
           tone="files"
-          confirm={{
-            label: 'Install Anyway',
-            onConfirm: () => {
-              setPrereleasePrompt(false);
-              doInstall(versionInfo.version);
+          confirm={withLockAwareConfirm(
+            {
+              label: 'Install Anyway',
+              onConfirm: () => {
+                setPrereleasePrompt(false);
+                doInstall(versionInfo.version);
+              },
             },
-          }}
+            mutationLocked,
+            mutationLockedReason,
+          )}
         />
       )}
 
@@ -805,14 +830,18 @@ export function ChangelogPage() {
           description={`Installing ${item.name} ${conflictState.version} conflicts with an existing map. Replace the existing map to continue.`}
           icon={AlertTriangle}
           tone="files"
-          confirm={{
-            label: 'Replace',
-            onConfirm: () => {
-              const version = conflictState.version;
-              setConflictState(null);
-              void doInstall(version, true);
+          confirm={withLockAwareConfirm(
+            {
+              label: 'Replace',
+              onConfirm: () => {
+                const version = conflictState.version;
+                setConflictState(null);
+                void doInstall(version, true);
+              },
             },
-          }}
+            mutationLocked,
+            mutationLockedReason,
+          )}
         >
           <div
             className={`rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground ${FILES_ACCENT.dialogPanel}`}

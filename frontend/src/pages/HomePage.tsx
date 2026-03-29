@@ -28,6 +28,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import type { AssetType } from '@/lib/asset-types';
 import { getLocalAccentClasses } from '@/lib/local-accent';
 import {
+  handleSubscriptionMutationError,
+  useSubscriptionMutationLockState,
+  withLockAwareConfirm,
+} from '@/lib/subscription-mutation-ui';
+import {
   indexPendingSubscriptionUpdates,
   type PendingUpdatesByKey,
   requestLatestSubscriptionUpdatesForActiveProfile,
@@ -57,6 +62,8 @@ export function HomePage() {
     isOperating,
     getInstalledVersion,
   } = useInstalledStore();
+  const { locked: mutationLocked, reason: mutationLockedReason } =
+    useSubscriptionMutationLockState();
 
   const [pendingUpdatesByKey, setPendingUpdatesByKey] =
     useState<PendingUpdatesByKey>({});
@@ -154,8 +161,9 @@ export function HomePage() {
       try {
         await updateAssetsToLatest(operations);
         void fetchPendingUpdates();
-      } catch {
-        // Errors via toasts in the store.
+      } catch (err) {
+        handleSubscriptionMutationError(err, () => {});
+        // Other errors are surfaced via toasts in the store.
       } finally {
         if (trackBulkUpdate) {
           setUpdatingAll(false);
@@ -274,7 +282,7 @@ export function HomePage() {
               !updatesLoading && pendingUpdateEntries.length > 0 ? (
                 <Button
                   size="sm"
-                  disabled={updatingAll}
+                  disabled={updatingAll || mutationLocked}
                   onClick={() => setUpdateAllConfirmOpen(true)}
                   className={cn(
                     'h-8 gap-1.5 text-xs',
@@ -319,6 +327,7 @@ export function HomePage() {
                     isUpdating={isOperating(id)}
                     onUpdate={() => void runUpdateOperations([{ type, id }])}
                     updateButtonClassName={UPDATE_ACCENT.solidButton}
+                    disabled={mutationLocked}
                   />
                 ),
               )
@@ -334,11 +343,15 @@ export function HomePage() {
         description={`This will update ${pendingUpdateEntries.length} asset${pendingUpdateEntries.length === 1 ? '' : 's'}.`}
         icon={CircleFadingArrowUp}
         tone="update"
-        confirm={{
-          label: 'Update All',
-          onConfirm: () => void handleUpdateAll(),
-          loading: updatingAll,
-        }}
+        confirm={withLockAwareConfirm(
+          {
+            label: 'Update All',
+            onConfirm: () => void handleUpdateAll(),
+            loading: updatingAll,
+          },
+          mutationLocked,
+          mutationLockedReason,
+        )}
       >
         {pendingUpdateEntries.length > 0 && (
           <div className="max-h-48 overflow-y-auto rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">

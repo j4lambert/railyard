@@ -21,6 +21,11 @@ import { buildAssetListingCounts } from '@/lib/listing-counts';
 import { getLocalAccentClasses } from '@/lib/local-accent';
 import { buildSpecialDemandValues } from '@/lib/map-filter-values';
 import {
+  handleSubscriptionMutationError,
+  useSubscriptionMutationLockState,
+  withLockAwareConfirm,
+} from '@/lib/subscription-mutation-ui';
+import {
   indexPendingSubscriptionUpdates,
   type PendingUpdatesByKey,
   requestLatestSubscriptionUpdatesForActiveProfile,
@@ -97,6 +102,8 @@ const FILES_ACCENT = getLocalAccentClasses('files');
 
 export function LibraryPage() {
   const [, navigate] = useLocation();
+  const { locked: mutationLocked, reason: mutationLockedReason } =
+    useSubscriptionMutationLockState();
   const sidebarOpen = useUIStore((s) => s.librarySidebarOpen);
   const setSidebarOpen = useUIStore((s) => s.setLibrarySidebarOpen);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -316,6 +323,9 @@ export function LibraryPage() {
         setImportInvalidCode(err.message);
         return;
       }
+      if (handleSubscriptionMutationError(err, () => {})) {
+        return;
+      }
       setImportSelectedPath('');
       toast.error('Failed to import map.');
     } finally {
@@ -405,6 +415,7 @@ export function LibraryPage() {
             variant="outline"
             className={`shrink-0 gap-1.5 ${IMPORT_ACCENT.outlineButton}`}
             onClick={() => setImportDialogOpen(true)}
+            disabled={mutationLocked}
           >
             <Inbox className="h-4 w-4" />
             Import Asset
@@ -494,12 +505,16 @@ export function LibraryPage() {
         icon={FileArchive}
         description="Import a local map ZIP into your Library. Local assets are tracked separately from registry assets."
         tone="import"
-        confirm={{
-          label: 'Choose ZIP',
-          cancelLabel: 'Close',
-          onConfirm: handlePickArchive,
-          loading: importLoading,
-        }}
+        confirm={withLockAwareConfirm(
+          {
+            label: 'Choose ZIP',
+            cancelLabel: 'Close',
+            onConfirm: handlePickArchive,
+            loading: importLoading,
+          },
+          mutationLocked,
+          mutationLockedReason,
+        )}
       >
         <div className="min-w-0 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
           Asset Type: <span className="font-medium text-foreground">Map</span>
@@ -524,14 +539,18 @@ export function LibraryPage() {
           icon={AlertTriangle}
           description="This local import conflicts with an existing map. Replace the existing map to continue."
           tone="files"
-          confirm={{
-            label: 'Replace',
-            onConfirm: () => {
-              if (!importSelectedPath) return;
-              void runImport(importSelectedPath, true);
+          confirm={withLockAwareConfirm(
+            {
+              label: 'Replace',
+              onConfirm: () => {
+                if (!importSelectedPath) return;
+                void runImport(importSelectedPath, true);
+              },
+              loading: importLoading,
             },
-            loading: importLoading,
-          }}
+            mutationLocked,
+            mutationLockedReason,
+          )}
         >
           <div
             className={`rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground ${FILES_ACCENT.dialogPanel}`}

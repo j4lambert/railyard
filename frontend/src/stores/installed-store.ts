@@ -2,15 +2,13 @@ import { create } from 'zustand';
 
 import type { AssetType } from '@/lib/asset-types';
 import {
-  requestLatestSubscriptionUpdatesForActiveProfile,
-  resolveActiveProfileID,
-} from '@/lib/subscription-updates';
+  applyLatestSubscriptionUpdatesForActiveProfile,
+  importAssetForActiveProfile,
+  mutateSubscriptionsForActiveProfile,
+} from '@/lib/subscription-mutation-client';
+export { SubscriptionMutationLockedError } from '@/lib/subscription-mutation-client';
 
 import { types } from '../../wailsjs/go/models';
-import {
-  ImportAsset,
-  UpdateSubscriptions,
-} from '../../wailsjs/go/profiles/UserProfiles';
 import {
   GetInstalledMapsResponse,
   GetInstalledModsResponse,
@@ -196,15 +194,11 @@ export const useInstalledStore = create<InstalledState>((set, get) => {
       throw new Error('No assets provided for subscription update');
     }
 
-    const profileID = await resolveActiveProfileID();
-    const request = new types.UpdateSubscriptionsRequest({
-      profileId: profileID,
+    const result = await mutateSubscriptionsForActiveProfile({
       assets,
       action,
-      applyMode: 'persist_and_sync',
-      replaceOnConflict: replaceOnConflict,
+      replaceOnConflict,
     });
-    const result = await UpdateSubscriptions(request);
     if (result.status === 'warn' && (result.conflicts?.length ?? 0) > 0) {
       throw new AssetConflictError(
         resolveSubscriptionSyncMessage(result, 'Asset conflict detected'),
@@ -314,8 +308,7 @@ export const useInstalledStore = create<InstalledState>((set, get) => {
     set({ error: null });
 
     try {
-      const result = await requestLatestSubscriptionUpdatesForActiveProfile({
-        apply: true,
+      const result = await applyLatestSubscriptionUpdatesForActiveProfile({
         targets: assets,
       });
       if (result.status === 'error') {
@@ -348,18 +341,14 @@ export const useInstalledStore = create<InstalledState>((set, get) => {
     zipPath: string,
     replaceOnConflict = false,
   ) => {
-    const profileID = await resolveActiveProfileID();
     set({ error: null });
 
     try {
-      const result = await ImportAsset(
-        new types.ImportAssetRequest({
-          profileId: profileID,
-          assetType: 'map',
-          zipPath,
-          replaceOnConflict,
-        }),
-      );
+      const result = await importAssetForActiveProfile({
+        assetType: 'map',
+        zipPath,
+        replaceOnConflict,
+      });
       if (result.status === 'warn' && (result.conflicts?.length ?? 0) > 0) {
         throw new AssetConflictError(
           resolveSubscriptionSyncMessage(result, 'Asset conflict detected'),

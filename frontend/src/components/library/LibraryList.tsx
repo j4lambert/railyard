@@ -32,6 +32,11 @@ import { openInstallFolder } from '@/lib/install-path';
 import { LOCAL_ACCENTS } from '@/lib/local-accent';
 import { formatSourceQuality } from '@/lib/map-filter-values';
 import {
+  handleSubscriptionMutationError,
+  useSubscriptionMutationLockState,
+  withLockAwareConfirm,
+} from '@/lib/subscription-mutation-ui';
+import {
   composeAssetKey,
   getPendingSubscriptionUpdate,
   type PendingUpdatesByKey,
@@ -90,6 +95,8 @@ export function LibraryList({
   onSortChange,
 }: LibraryListProps) {
   const { selectedIds, selectAll, clearSelection } = useLibraryStore();
+  const { locked: mutationLocked, reason: mutationLockedReason } =
+    useSubscriptionMutationLockState();
   const showMapColumns = activeType === 'map';
 
   const [columnDirections, setColumnDirections] = useState<
@@ -182,6 +189,8 @@ export function LibraryList({
             showMapColumns={showMapColumns}
             pendingUpdatesByKey={pendingUpdatesByKey}
             onRefreshPendingUpdates={onRefreshPendingUpdates}
+            mutationLocked={mutationLocked}
+            mutationLockedReason={mutationLockedReason}
           />
         ))}
       </div>
@@ -194,6 +203,8 @@ interface LibraryListRowProps {
   showMapColumns: boolean;
   pendingUpdatesByKey: PendingUpdatesByKey;
   onRefreshPendingUpdates: () => Promise<void>;
+  mutationLocked: boolean;
+  mutationLockedReason?: string;
 }
 
 function LibraryListRow({
@@ -201,6 +212,8 @@ function LibraryListRow({
   showMapColumns,
   pendingUpdatesByKey,
   onRefreshPendingUpdates,
+  mutationLocked,
+  mutationLockedReason,
 }: LibraryListRowProps) {
   const [uninstallOpen, setUninstallOpen] = useState(false);
   const [uninstallLoading, setUninstallLoading] = useState(false);
@@ -253,8 +266,11 @@ function LibraryListRow({
       removeSelected([key]);
       void onRefreshPendingUpdates();
       setUninstallOpen(false);
-    } catch {
-      toast.error(`Failed to uninstall ${entry.item.name}.`);
+    } catch (err) {
+      handleSubscriptionMutationError(
+        err,
+        `Failed to uninstall ${entry.item.name}.`,
+      );
     } finally {
       setUninstallLoading(false);
     }
@@ -280,8 +296,11 @@ function LibraryListRow({
       toast.success(`${updateTarget.name} has been updated.`);
       void onRefreshPendingUpdates();
       setUpdateOpen(false);
-    } catch {
-      toast.error(`Failed to update ${updateTarget.name}.`);
+    } catch (err) {
+      handleSubscriptionMutationError(
+        err,
+        `Failed to update ${updateTarget.name}.`,
+      );
     } finally {
       setUpdateLoading(false);
     }
@@ -416,6 +435,7 @@ function LibraryListRow({
               className={cn('h-7 w-7', UPDATE_ICON_ACCENT)}
               onClick={() => setUpdateOpen(true)}
               aria-label="Update to latest"
+              disabled={mutationLocked}
             >
               <CircleFadingArrowUp className="h-3.5 w-3.5" />
             </Button>
@@ -436,6 +456,7 @@ function LibraryListRow({
             className={cn('h-7 w-7', UNINSTALL_ICON_ACCENT)}
             onClick={() => setUninstallOpen(true)}
             aria-label="Uninstall"
+            disabled={mutationLocked}
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
@@ -449,11 +470,15 @@ function LibraryListRow({
         description="This will permanently remove all installed files. You can reinstall it later from the Browse page."
         icon={OctagonX}
         tone="uninstall"
-        confirm={{
-          label: 'Uninstall',
-          onConfirm: handleUninstall,
-          loading: uninstallLoading,
-        }}
+        confirm={withLockAwareConfirm(
+          {
+            label: 'Uninstall',
+            onConfirm: handleUninstall,
+            loading: uninstallLoading,
+          },
+          mutationLocked,
+          mutationLockedReason,
+        )}
       >
         <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
           <span className="font-medium text-foreground">{entry.item.name}</span>
@@ -468,11 +493,15 @@ function LibraryListRow({
           description={`This will update the selected ${updateTarget.type === 'mod' ? 'mod' : 'map'} to its latest available version.`}
           icon={CircleFadingArrowUp}
           tone="update"
-          confirm={{
-            label: 'Update',
-            onConfirm: handleUpdate,
-            loading: updateLoading,
-          }}
+          confirm={withLockAwareConfirm(
+            {
+              label: 'Update',
+              onConfirm: handleUpdate,
+              loading: updateLoading,
+            },
+            mutationLocked,
+            mutationLockedReason,
+          )}
         >
           {previewEntries.length > 0 && (
             <div className="max-h-48 overflow-y-auto rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">

@@ -35,6 +35,11 @@ import { assetTypeToListingPath } from '@/lib/asset-types';
 import { getLocalAccentClasses } from '@/lib/local-accent';
 import { isCompatible } from '@/lib/semver';
 import {
+  handleSubscriptionMutationError,
+  useSubscriptionMutationLockState,
+  withLockAwareConfirm,
+} from '@/lib/subscription-mutation-ui';
+import {
   hasCancellationSyncErrors,
   hasOnlySilentSyncWarnings,
   isCancellationSyncError,
@@ -150,6 +155,8 @@ export function ProjectVersions({
 
   const cancellationToastId = `cancel-install-${type}-${itemId}`;
   const installedVersion = getInstalledVersion(itemId);
+  const { locked: mutationLocked, reason: mutationLockedReason } =
+    useSubscriptionMutationLockState();
 
   const doInstall = async (version: string, replaceOnConflict = false) => {
     try {
@@ -176,6 +183,9 @@ export function ProjectVersions({
       const queueText = total > 1 ? ` (${completed}/${total} Downloaded)` : '';
       toast.success(`Installed ${version} successfully.${queueText}`);
     } catch (err) {
+      if (handleSubscriptionMutationError(err, () => {})) {
+        return;
+      }
       if (err instanceof AssetConflictError && err.conflicts.length > 0) {
         setConflictState({ version, conflict: err.conflicts[0] });
         return;
@@ -402,6 +412,7 @@ export function ProjectVersions({
                       size="icon-xs"
                       className={INSTALL_ACCENT.outlineButton}
                       onClick={() => handleInstall(v.version, v.prerelease)}
+                      disabled={mutationLocked}
                     >
                       <Download className="h-3.5 w-3.5" />
                     </Button>
@@ -429,14 +440,18 @@ export function ProjectVersions({
             </>
           }
           tone="files"
-          confirm={{
-            label: 'Install Anyway',
-            onConfirm: () => {
-              const version = prereleasePrompt.version;
-              setPrereleasePrompt(null);
-              doInstall(version);
+          confirm={withLockAwareConfirm(
+            {
+              label: 'Install Anyway',
+              onConfirm: () => {
+                const version = prereleasePrompt.version;
+                setPrereleasePrompt(null);
+                doInstall(version);
+              },
             },
-          }}
+            mutationLocked,
+            mutationLockedReason,
+          )}
         />
       )}
 
@@ -538,14 +553,18 @@ export function ProjectVersions({
           description={`Installing ${itemName} ${conflictState.version} conflicts with an existing map. Replace the existing map to continue.`}
           icon={AlertTriangle}
           tone="files"
-          confirm={{
-            label: 'Replace',
-            onConfirm: () => {
-              const version = conflictState.version;
-              setConflictState(null);
-              void doInstall(version, true);
+          confirm={withLockAwareConfirm(
+            {
+              label: 'Replace',
+              onConfirm: () => {
+                const version = conflictState.version;
+                setConflictState(null);
+                void doInstall(version, true);
+              },
             },
-          }}
+            mutationLocked,
+            mutationLockedReason,
+          )}
         >
           <div
             className={`rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground ${FILES_ACCENT.dialogPanel}`}
